@@ -155,13 +155,17 @@
 			}
 
 			if (imageUrl) {
-				files = [
-					...files,
-					{
-						type: 'image',
-						url: imageUrl
-					}
-				];
+				if (visionCapableModels.length === 0) {
+					toast.error($i18n.t('Selected model(s) do not support image inputs'));
+				} else {
+					files = [
+						...files,
+						{
+							type: 'image',
+							url: imageUrl
+						}
+					];
+				}
 			}
 
 			text = text.replaceAll('{{CLIPBOARD}}', clipboardText);
@@ -552,7 +556,11 @@
 			// Convert the canvas to a Base64 image URL
 			const imageUrl = canvas.toDataURL('image/png');
 			// Add the captured image to the files array to render it
-			files = [...files, { type: 'image', url: imageUrl }];
+			if (visionCapableModels.length === 0) {
+				toast.error($i18n.t('Selected model(s) do not support image inputs'));
+			} else {
+				files = [...files, { type: 'image', url: imageUrl }];
+			}
 			// Clean memory: Clear video srcObject
 			video.srcObject = null;
 		} catch (error) {
@@ -1044,7 +1052,17 @@
 						<form
 							class="w-full flex flex-col gap-1.5"
 							on:submit|preventDefault={() => {
-								// check if selectedModels support image input
+								// Prevent submit if there are images but selected model(s) are not vision capable
+								const containsImages = files.some((f) => f.type === 'image');
+								const allSelectedSupportVision = (atSelectedModel !== undefined
+									? visionCapableModels.length === 1
+									: selectedModels.length === visionCapableModels.length);
+
+								if (containsImages && !allSelectedSupportVision) {
+									toast.error($i18n.t('Selected model(s) do not support image inputs'));
+									return;
+								}
+
 								dispatch('submit', prompt);
 							}}
 						>
@@ -1346,6 +1364,10 @@
 														if (clipboardData && clipboardData.items) {
 															for (const item of clipboardData.items) {
 																if (item.type.indexOf('image') !== -1) {
+																	if (visionCapableModels.length === 0) {
+																		toast.error($i18n.t('Selected model(s) do not support image inputs'));
+																		continue;
+																	}
 																	const blob = item.getAsFile();
 																	const reader = new FileReader();
 
@@ -1602,6 +1624,10 @@
 													for (const item of clipboardData.items) {
 														console.log(item);
 														if (item.type.indexOf('image') !== -1) {
+															if (visionCapableModels.length === 0) {
+																toast.error($i18n.t('Selected model(s) do not support image inputs'));
+																continue;
+															}
 															const blob = item.getAsFile();
 															const reader = new FileReader();
 
@@ -1651,6 +1677,7 @@
 											bind:selectedToolIds
 											selectedModels={atSelectedModel ? [atSelectedModel.id] : selectedModels}
 											{fileUploadCapableModels}
+											{visionCapableModels}
 											{screenCaptureHandler}
 											{inputFilesHandler}
 											uploadFilesHandler={() => {
