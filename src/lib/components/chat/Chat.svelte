@@ -1448,12 +1448,6 @@
 				// Response not done
 				return;
 			}
-
-			if (lastMessage.error && !lastMessage.content) {
-				// Error in response
-				toast.error($i18n.t(`Oops! There was an error in the previous response.`));
-				return;
-			}
 		}
 
 		messageInput?.setText('');
@@ -1684,6 +1678,36 @@
 			$settings?.params?.stream_response ??
 			params?.stream_response ??
 			true;
+
+		// Filter out errored assistant messages and their triggering user messages from context
+		// Keep the triggering user message when regenerating (when the errored assistant is last in the path)
+		try {
+			const dropUserIds = new Set();
+			const hasMessages = Array.isArray(_messages) && _messages.length > 0;
+			if (!hasMessages) return;
+
+			const lastIndex = _messages.length - 1;
+			// Identify errored assistant messages to drop
+			for (let idx = 0; idx < _messages.length; idx++) {
+				const m = _messages[idx];
+				if (m?.role === 'assistant' && m?.error) {
+					// Always drop errored assistant message
+					// If not regenerating this specific message (i.e., not last), also drop its triggering user message
+					if (idx !== lastIndex && m?.parentId) {
+						dropUserIds.add(m.parentId);
+					}
+				}
+			}
+
+			// Rebuild _messages excluding errored assistants and their triggering user messages
+			_messages = _messages.filter((m) => {
+				if (m?.role === 'assistant' && m?.error) return false;
+				if (m?.role === 'user' && dropUserIds.has(m.id)) return false;
+				return true;
+			});
+		} catch (e) {
+			console.debug('context filter skipped due to error', e);
+		};
 
 		let messages = [
 			params?.system || $settings.system
